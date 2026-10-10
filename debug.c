@@ -11,6 +11,11 @@ void disassembleChunk(Chunk* chunk, const char* name) {
     }
 }
 
+static int simpleInstruction(const char* name, int offset) {
+    printf("%s\n", name);
+    return offset + 1;
+}
+
 static int constantInstruction(const char* name, Chunk* chunk, int offset) {
     uint8_t constant = chunk->code[offset + 1];
     printf("%-16s %4d '", name, constant);
@@ -19,13 +24,15 @@ static int constantInstruction(const char* name, Chunk* chunk, int offset) {
     return offset + 2;
 }
 
+// Challenge 14.1 - Implement run-length encoding
+// Use run-length encoding to get the line number for the current instruction
 int disassembleInstruction(Chunk* chunk, int offset) {
     printf("%04d ", offset);
-    if (offset > 0 && 
-        chunk->lines[offset] == chunk->lines[offset - 1]) {
+    int line = getLine(chunk, offset);
+    if (offset > 0 && line == getLine(chunk, offset - 1)) {
         printf("   | ");
     } else {
-        printf("%4d ", chunk->lines[offset]);
+        printf("%4d ", line);
     }
 
     uint8_t instruction = chunk->code[offset];
@@ -38,9 +45,4 @@ int disassembleInstruction(Chunk* chunk, int offset) {
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;
     }
-}
-
-static int simpleInstruction(const char* name, int offset) {
-    printf("%s\n", name);
-    return offset + 1;
 }
