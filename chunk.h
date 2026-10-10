@@ -6,6 +6,7 @@
 
 typedef enum {
     OP_CONSTANT,
+    OP_CONSTANT_LONG,
     OP_RETURN,
 } OpCode;
 
@@ -36,5 +37,8 @@ int addConstant(Chunk* chunk, Value value);
 // Challenge 14.1 - Implement run-length encoding of line information
 // Helper function to get the line number for a given instruction using run-length encoding
 int getLine(Chunk* chunk, int instruction);
+
+// Challenge 14.2 - Implement writeConstant
+void writeConstant(Chunk* chunk, Value value, int line);
 
 #endif
