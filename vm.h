@@ -9,8 +9,11 @@
 typedef struct {
     Chunk* chunk;
     uint8_t* ip;
-    Value stack[STACK_MAX];
-    Value* stackTop;
+
+    // Challenge 15.3 - Use a dynamically sized stack instead of a fixed-size array
+    Value* stack;
+    int stackCount;
+    int stackCapacity;
 } VM;
 
 typedef enum {
