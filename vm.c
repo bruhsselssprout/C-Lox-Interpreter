@@ -27,10 +27,6 @@ static void runtimeError(const char* format, ...) {
     resetStack();
 }
 
-static Value peek(int distance) {
-    return vm.stackTop[-1 - distance];
-}
-
 void initVM() {
     resetStack();
 }
@@ -99,7 +95,7 @@ static InterpretResult run() {
             case OP_EQUAL: {
                 Value b = pop();
                 Value a = pop();
-                push(BOOL_VAL(ValuesEqual(a, b)));
+                push(BOOL_VAL(valuesEqual(a, b)));
                 break;
             }
 
