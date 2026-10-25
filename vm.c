@@ -34,12 +34,16 @@ void initVM() {
     resetStack();
     vm.objects = NULL;
 
-    initTable(&vm.globals);
+    // Challenge 21.2
+    initTable(&vm.globalNames);
+    initValueArray(&vm.globalValues);
     initTable(&vm.strings);
 }
 
 void freeVM() {
-    freeTable(&vm.globals);
+    // Challenge 21.2
+    freeTable(&vm.globalNames);
+    freeValueArray(&vm.globalValues);
     freeTable(&vm.strings);
     freeObjects();
 }
@@ -73,10 +77,25 @@ static void concatenate() {
     push(OBJ_VAL(result));
 }
 
+// Challenge 21.2
+// Only used on the error path, so a linear reverse lookup is fine.
+static ObjString* globalName(Value* slot) {
+    int index = (int)(slot - vm.globalValues.values);
+    for (int i = 0; i < vm.globalNames.capacity; i++) {
+        Entry* entry = &vm.globalNames.entries[i];
+        if (entry->key != NULL && (int)AS_NUMBER(entry->value) == index) {
+            return entry->key;
+        }
+    }
+    return NULL;
+}
+
 static InterpretResult run() {
 #define READ_BYTE() (*vm.ip++)
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-#define READ_STRING() AS_STRING(READ_CONSTANT())
+// Challenge 21.2
+#define READ_GLOBAL_SLOT() (&vm.globalValues.values[READ_BYTE()])
+#define GLOBAL_NAME(slot) (globalName(slot))
 
 #define BINARY_OP(valueType, op) \
     do { \
@@ -114,31 +133,31 @@ static InterpretResult run() {
             case OP_FALSE: push(BOOL_VAL(false)); break;
             case OP_POP: pop(); break;
 
+            // Challenge 21.2
             case OP_GET_GLOBAL: {
-                ObjString* name = READ_STRING();
-                Value value;
-                if (!tableGet(&vm.globals, name, &value)) {
-                    runtimeError("Undefined variable '%s'.", name->chars);
+                Value* slot = READ_GLOBAL_SLOT();
+                if (IS_UNDEFINED(*slot)) {
+                    runtimeError("Undefined variable '%s'.", GLOBAL_NAME(slot)->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(value);
+                push(*slot);
                 break;
             }
 
+            // Challenge 21.2
             case OP_DEFINE_GLOBAL: {
-                ObjString* name = READ_STRING();
-                tableSet(&vm.globals, name, peek(0));
+                *READ_GLOBAL_SLOT() = peek(0);
                 pop();
                 break;
             }
 
             case OP_SET_GLOBAL: {
-                ObjString* name = READ_STRING();
-                if (tableSet(&vm.globals, name, peek(0))) {
-                    tableDelete(&vm.globals, name);
-                    runtimeError("Undefined variable '%s'.", name->chars);
+                Value* slot = READ_GLOBAL_SLOT();
+                if (IS_UNDEFINED(*slot)) {
+                    runtimeError("Undefined variable '%s'.", GLOBAL_NAME(slot)->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
+                *slot = peek(0);
                 break;
             }
 

@@ -5,6 +5,7 @@
 #include "compiler.h"
 #include "scanner.h"
 #include "table.h"
+#include "vm.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -42,9 +43,6 @@ typedef struct {
 Parser parser;
 
 Chunk* compilingChunk;
-
-// Maps interned identifier strings to their constant table index.
-static Table identifierConstants;
 
 static Chunk* currentChunk() {
     return compilingChunk;
@@ -148,23 +146,31 @@ static void declaration();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
-// Challenge 21.1
-static uint8_t identifierConstant(Token* name) {
+// Challenge 21.2
+// Resolves a global name to its slot in vm.globalValues, creating it if new.
+static uint8_t globalSlot(Token* name) {
     ObjString* string = copyString(name->start, name->length);
 
     Value indexValue;
-    if (tableGet(&identifierConstants, string, &indexValue)) {
+    if (tableGet(&vm.globalNames, string, &indexValue)) {
         return (uint8_t)AS_NUMBER(indexValue);
     }
 
-    uint8_t index = makeConstant(OBJ_VAL(string));
-    tableSet(&identifierConstants, string, NUMBER_VAL((double)index));
-    return index;
+    if (vm.globalValues.count > UINT8_MAX) {
+        error("Too many global variables.");
+        return 0;
+    }
+
+    int index = vm.globalValues.count;
+    writeValueArray(&vm.globalValues, UNDEFINED_VAL);
+    tableSet(&vm.globalNames, string, NUMBER_VAL((double)index));
+    return (uint8_t)index;
 }
 
+// Challenge 21.2
 static uint8_t parseVariable(const char* errorMessage) {
     consume(TOKEN_IDENTIFIER, errorMessage);
-    return identifierConstant(&parser.previous);
+    return globalSlot(&parser.previous);
 }
 
 static void defineVariable(uint8_t global) {
@@ -220,8 +226,9 @@ static void string(bool canAssign) {
     emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
+// Challenge 21.2
 static void namedVariable(Token name, bool canAssign) {
-    uint8_t arg = identifierConstant(&name);
+    uint8_t arg = globalSlot(&name);
     
     if (canAssign && match(TOKEN_EQUAL)) {
         expression();
@@ -394,7 +401,6 @@ static void statement() {
 bool compile(const char* source, Chunk* chunk) {
     initScanner(source);
     compilingChunk = chunk;
-    initTable(&identifierConstants);
 
     parser.hadError = false;
     parser.panicMode = false;
@@ -406,6 +412,5 @@ bool compile(const char* source, Chunk* chunk) {
     }
 
     endCompiler();
-    freeTable(&identifierConstants);
     return !parser.hadError;
 }

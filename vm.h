@@ -7,12 +7,14 @@
 
 #define STACK_MAX 256
 
+// Challenge 21.2
 typedef struct {
     Chunk* chunk;
     uint8_t* ip;
     Value stack[STACK_MAX];
     Value* stackTop;
-    Table globals;
+    Table globalNames;      // name -> slot index, filled at compile time
+    ValueArray globalValues; // indexed by slot; UNDEFINED_VAL until defined
     Table strings;
 
     Obj* objects;
