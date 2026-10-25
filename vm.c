@@ -62,9 +62,11 @@ static void concatenate() {
     ObjString* a = AS_STRING(pop());
 
     int length = a->length + b->length;
-    char* chars = ALLOCATE(char, length + 1);
-    chars[length] = '\0';
-    ObjString* result = takeString(chars, length);
+
+    // Challenge 19.1 - Implement flexible array members
+    ObjString* result = makeString(length);
+    memcpy(result->chars, a->chars, a->length);
+    memcpy(result->chars + a->length, b->chars, b->length);
     push(OBJ_VAL(result));
 }
 
