@@ -36,7 +36,8 @@ static ObjString* allocateString(char* chars, int length, uint32_t hash) {
     string->chars = chars;
     string->hash = hash;
 
-    tableSet(&vm.strings, string, NIL_VAL);
+    // Challenge 20.1
+    tableSet(&vm.strings, OBJ_VAL(string), NIL_VAL);
 
     return string;
 }
