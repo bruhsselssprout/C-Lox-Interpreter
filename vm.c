@@ -65,8 +65,8 @@ static void concatenate() {
 
     // Challenge 19.1 - Implement flexible array members
     ObjString* result = makeString(length);
-    memcpy(result->chars, a->chars, a->length);
-    memcpy(result->chars + a->length, b->chars, b->length);
+    memcpy(result->data, a->chars, a->length);
+    memcpy(result->data + a->length, b->chars, b->length);
     push(OBJ_VAL(result));
 }
 

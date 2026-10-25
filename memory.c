@@ -17,7 +17,10 @@ static void freeObject(Obj* object) {
     switch (object->type) {
         case OBJ_STRING: {
             ObjString* string = (ObjString*)object;
-            reallocate(object, sizeof(ObjString) + string->length + 1, 0);
+
+            // Challenge 19.2 - Optimize ObjString
+            reallocate(object, sizeof(ObjString) +
+                                    (string->ownsChars ? string->length + 1 : 0), 0);
             break;
         }
     }
