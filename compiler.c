@@ -4,6 +4,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "scanner.h"
+#include "table.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -41,6 +42,9 @@ typedef struct {
 Parser parser;
 
 Chunk* compilingChunk;
+
+// Maps interned identifier strings to their constant table index.
+static Table identifierConstants;
 
 static Chunk* currentChunk() {
     return compilingChunk;
@@ -144,8 +148,18 @@ static void declaration();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
+// Challenge 21.1
 static uint8_t identifierConstant(Token* name) {
-    return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+    ObjString* string = copyString(name->start, name->length);
+
+    Value indexValue;
+    if (tableGet(&identifierConstants, string, &indexValue)) {
+        return (uint8_t)AS_NUMBER(indexValue);
+    }
+
+    uint8_t index = makeConstant(OBJ_VAL(string));
+    tableSet(&identifierConstants, string, NUMBER_VAL((double)index));
+    return index;
 }
 
 static uint8_t parseVariable(const char* errorMessage) {
@@ -380,6 +394,7 @@ static void statement() {
 bool compile(const char* source, Chunk* chunk) {
     initScanner(source);
     compilingChunk = chunk;
+    initTable(&identifierConstants);
 
     parser.hadError = false;
     parser.panicMode = false;
@@ -391,5 +406,6 @@ bool compile(const char* source, Chunk* chunk) {
     }
 
     endCompiler();
+    freeTable(&identifierConstants);
     return !parser.hadError;
 }
