@@ -31,7 +31,7 @@ static uint32_t hashString(const char* key, int length) {
 }
 
 static ObjString* allocateString(char* chars, int length, uint32_t hash) {
-    ObjString* string = ALLOCATE(ObjString, OBJ_STRING);
+    ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
     string->length = length;
     string->chars = chars;
     string->hash = hash;
