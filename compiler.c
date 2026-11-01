@@ -50,9 +50,16 @@ typedef struct {
     int scopeDepth;
 } Compiler;
 
+typedef struct Loop {
+    struct Loop* enclosing;
+    int continueTarget;
+    int scopeDepth;
+} Loop;
+
 Parser parser;
 
 Compiler* current = NULL;
+static Loop* currentLoop = NULL;
 
 Chunk* compilingChunk;
 
@@ -491,6 +498,21 @@ static void expressionStatement() {
     emitByte(OP_POP);
 }
 
+// Challenge 23.2
+static void continueStatement() {
+    consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+    if (currentLoop == NULL) {
+        error("Can't use 'continue' outside of a loop.");
+        return;
+    }
+
+    for (int i = current->localCount - 1; i >= 0; i--) {
+        if (current->locals[i].depth <= currentLoop->scopeDepth) break;
+        emitByte(OP_POP);
+    }
+    emitLoop(currentLoop->continueTarget);
+}
+
 static void forStatement() {
     beginScope();
     
@@ -528,7 +550,13 @@ static void forStatement() {
         patchJump(bodyJump);
     }
 
+    Loop loop;
+    loop.enclosing = currentLoop;
+    loop.continueTarget = loopStart;
+    loop.scopeDepth = current->scopeDepth;
+    currentLoop = &loop;
     statement();
+    currentLoop = loop.enclosing;
 
     emitLoop(loopStart);
 
@@ -639,7 +667,13 @@ static void whileStatement() {
     int exitJump = emitJump(OP_JUMP_IF_FALSE);
 
     emitByte(OP_POP);
+    Loop loop;
+    loop.enclosing = currentLoop;
+    loop.continueTarget = loopStart;
+    loop.scopeDepth = current->scopeDepth;
+    currentLoop = &loop;
     statement();
+    currentLoop = loop.enclosing;
 
     emitLoop(loopStart);
 
@@ -659,6 +693,7 @@ static void synchronize() {
             case TOKEN_VAR:
             case TOKEN_FOR:
             case TOKEN_IF:
+            case TOKEN_CONTINUE:
             case TOKEN_SWITCH:
             case TOKEN_WHILE:
             case TOKEN_PRINT:
@@ -690,6 +725,8 @@ static void statement() {
         forStatement();
     } else if (match(TOKEN_IF)) {
         ifStatement();
+    } else if (match(TOKEN_CONTINUE)) {
+        continueStatement();
     } else if (match(TOKEN_SWITCH)) {
         switchStatement();
     } else if (match(TOKEN_WHILE)) {
