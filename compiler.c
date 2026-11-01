@@ -396,6 +396,7 @@ ParseRule rules[] = {
     [TOKEN_LEFT_BRACE]    = {NULL, NULL, PREC_NONE},
     [TOKEN_RIGHT_BRACE] = {NULL, NULL, PREC_NONE},
     [TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
+    [TOKEN_COLON] = {NULL, NULL, PREC_NONE},
     [TOKEN_DOT] = {NULL, NULL, PREC_NONE},
     [TOKEN_MINUS] = {unary, binary, PREC_TERM},
     [TOKEN_PLUS] = {NULL, binary, PREC_TERM},
@@ -557,6 +558,71 @@ static void ifStatement() {
     patchJump(elseJump);
 }
 
+// Challenge 23.1
+static void switchStatement() {
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after 'switch'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after switch value.");
+    consume(TOKEN_LEFT_BRACE, "Expect '{' before switch cases.");
+
+    beginScope();
+    int switchSlot = current->localCount;
+    Token switchValue = {TOKEN_IDENTIFIER, "", 0, parser.previous.line};
+    addLocal(switchValue);
+    markInitialized();
+
+    int* endJumps = NULL;
+    size_t endJumpCount = 0;
+    size_t endJumpCapacity = 0;
+
+    while (match(TOKEN_CASE)) {
+        expression();
+        consume(TOKEN_COLON, "Expect ':' after case value.");
+
+        emitBytes(OP_GET_LOCAL, (uint8_t)switchSlot);
+        emitByte(OP_EQUAL);
+        int nextCase = emitJump(OP_JUMP_IF_FALSE);
+        emitByte(OP_POP);
+
+        while (!check(TOKEN_CASE) && !check(TOKEN_DEFAULT) &&
+                !check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+            statement();
+        }
+
+        int endJump = emitJump(OP_JUMP);
+        if (endJumpCount == endJumpCapacity) {
+            size_t newCapacity = endJumpCapacity < 8 ? 8 : endJumpCapacity * 2;
+            int* newJumps = realloc(endJumps, sizeof(int) * newCapacity);
+            if (newJumps == NULL) {
+                error("Not enough memory to compile switch statement.");
+            } else {
+                endJumps = newJumps;
+                endJumpCapacity = newCapacity;
+            }
+        }
+        if (endJumpCount < endJumpCapacity) {
+            endJumps[endJumpCount++] = endJump;
+        }
+
+        patchJump(nextCase);
+        emitByte(OP_POP);
+    }
+
+    if (match(TOKEN_DEFAULT)) {
+        consume(TOKEN_COLON, "Expect ':' after 'default'.");
+        while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+            statement();
+        }
+    }
+
+    consume(TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
+    for (size_t i = 0; i < endJumpCount; i++) {
+        patchJump(endJumps[i]);
+    }
+    free(endJumps);
+    endScope();
+}
+
 static void printStatement() {
     expression();
     consume(TOKEN_SEMICOLON, "Expect ';' after value.");
@@ -593,6 +659,7 @@ static void synchronize() {
             case TOKEN_VAR:
             case TOKEN_FOR:
             case TOKEN_IF:
+            case TOKEN_SWITCH:
             case TOKEN_WHILE:
             case TOKEN_PRINT:
             case TOKEN_RETURN:
@@ -623,6 +690,8 @@ static void statement() {
         forStatement();
     } else if (match(TOKEN_IF)) {
         ifStatement();
+    } else if (match(TOKEN_SWITCH)) {
+        switchStatement();
     } else if (match(TOKEN_WHILE)) {
         whileStatement();
     } else if (match(TOKEN_LEFT_BRACE)) {
