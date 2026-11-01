@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
     Token name;
     int depth;
+    bool isConst;
     uint32_t hash;
     // Next-older local in the same bucket, or -1.
     int next;
@@ -235,6 +236,7 @@ static void addLocal(Token name) {
     Local* local = &current->locals[slot];
     local->name = name;
     local->depth = -1;
+    local->isConst = false;
     local->hash = hashToken(&name);
     uint32_t bucket = local->hash % LOCAL_BUCKETS;
     local->next = current->buckets[bucket];
@@ -268,6 +270,53 @@ static uint8_t parseVariable(const char* errorMessage) {
     if (current->scopeDepth > 0) return 0;
 
     return identifierConstant(&parser.previous);
+}
+
+// Challenge 22.3
+// Const-ness of globals, kept across compile() calls so the REPL sees earlier lines.
+typedef struct {
+    char* name;
+    int length;
+    bool isConst;
+} GlobalInfo;
+
+static GlobalInfo* globalInfos = NULL;
+static int globalInfoCount = 0;
+static int globalInfoCapacity = 0;
+
+// Challenge 22.3
+static GlobalInfo* findGlobalInfo(Token* name) {
+    for (int i = 0; i < globalInfoCount; i++) {
+        if (globalInfos[i].length == name->length &&
+            memcmp(globalInfos[i].name, name->start, name->length) == 0) {
+            return &globalInfos[i];
+        }
+    }
+    return NULL;
+}
+
+// Challenge 22.3
+static void setGlobalConst(Token* name, bool isConst) {
+    GlobalInfo* info = findGlobalInfo(name);
+    if (info == NULL) {
+        if (globalInfoCount == globalInfoCapacity) {
+            globalInfoCapacity = globalInfoCapacity < 8 ? 8 : globalInfoCapacity * 2;
+            globalInfos = realloc(globalInfos, sizeof(GlobalInfo) * globalInfoCapacity);
+            if (globalInfos == NULL) exit(1);
+        }
+        info = &globalInfos[globalInfoCount++];
+        info->name = malloc(name->length);
+        if (info->name == NULL) exit(1);
+        memcpy(info->name, name->start, name->length);
+        info->length = name->length;
+    }
+    info->isConst = isConst;
+}
+
+// Challenge 22.3
+static bool isGlobalConst(Token* name) {
+    GlobalInfo* info = findGlobalInfo(name);
+    return info != NULL && info->isConst;
 }
 
 static void markInitialized() {
@@ -334,17 +383,21 @@ static void string(bool canAssign) {
 
 static void namedVariable(Token name, bool canAssign) {
     uint8_t getOp, setOp;
+    bool isConst;
     int arg = resolveLocal(current, &name);
     if (arg != -1) {
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
+        isConst = current->locals[arg].isConst;
     } else {
         arg = identifierConstant(&name);
         getOp = OP_GET_GLOBAL;
         setOp = OP_SET_GLOBAL;
+        isConst = isGlobalConst(&name);
     }
     
     if (canAssign && match(TOKEN_EQUAL)) {
+        if (isConst) error("Can't assign to a const variable.");
         expression();
         emitBytes(setOp, (uint8_t)arg);
     } else {
@@ -396,6 +449,7 @@ ParseRule rules[] = {
     [TOKEN_NUMBER] = {number, NULL, PREC_NONE},
     [TOKEN_AND] = {NULL, NULL, PREC_NONE},
     [TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
+    [TOKEN_CONST] = {NULL, NULL, PREC_NONE},
     [TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
     [TOKEN_FALSE] = {literal, NULL, PREC_NONE},
     [TOKEN_FOR] = {NULL, NULL, PREC_NONE},
@@ -452,11 +506,19 @@ static void block() {
     consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
-static void varDeclaration() {
+static void varDeclaration(bool isConst) {
     uint8_t global = parseVariable("Expect variable name.");
+    if (current->scopeDepth > 0) {
+        current->locals[current->localCount - 1].isConst = isConst;
+    } else {
+        setGlobalConst(&parser.previous, isConst);
+    }
 
     if (match(TOKEN_EQUAL)) {
         expression();
+    } else if (isConst) {
+        error("Const variable must have an initializer.");
+        emitByte(OP_NIL);
     } else {
         emitByte(OP_NIL);
     }
@@ -487,6 +549,7 @@ static void synchronize() {
             case TOKEN_CLASS:
             case TOKEN_FUN:
             case TOKEN_VAR:
+            case TOKEN_CONST:
             case TOKEN_FOR:
             case TOKEN_IF:
             case TOKEN_WHILE:
@@ -504,7 +567,9 @@ static void synchronize() {
 
 static void declaration() {
     if (match(TOKEN_VAR)) {
-        varDeclaration();
+        varDeclaration(false);
+    } else if (match(TOKEN_CONST)) {
+        varDeclaration(true);
     } else {
         statement();
     }
