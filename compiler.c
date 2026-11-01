@@ -39,15 +39,22 @@ typedef struct {
     Precedence precedence;
 } ParseRule;
 
+#define LOCAL_BUCKETS 64
+
 typedef struct {
     Token name;
     int depth;
+    uint32_t hash;
+    // Next-older local in the same bucket, or -1.
+    int next;
 } Local;
 
 typedef struct {
     Local locals[UINT8_COUNT];
     int localCount;
     int scopeDepth;
+    // Newest local slot in each hash bucket, or -1.
+    int buckets[LOCAL_BUCKETS];
 } Compiler;
 
 Parser parser;
@@ -146,6 +153,7 @@ static void emitConstant(Value value) {
 static void initCompiler(Compiler* compiler) {
     compiler->localCount = 0;
     compiler->scopeDepth = 0;
+    for (int i = 0; i < LOCAL_BUCKETS; i++) compiler->buckets[i] = -1;
     current = compiler;
 }
 
@@ -169,6 +177,9 @@ static void endScope() {
             current->locals[current->localCount - 1].depth > 
                 current->scopeDepth) {
         emitByte(OP_POP);
+        // Locals pop in LIFO order, so this one heads its bucket.
+        Local* popped = &current->locals[current->localCount - 1];
+        current->buckets[popped->hash % LOCAL_BUCKETS] = popped->next;
         current->localCount--;
     }
 }
@@ -188,10 +199,22 @@ static bool identifiersEqual(Token* a, Token* b) {
     return memcmp(a->start, b->start, a->length) == 0;
 }
 
+// Challenge 22.1
+static uint32_t hashToken(Token* name) {
+    uint32_t hash = 2166136261u;
+    for (int i = 0; i < name->length; i++) {
+        hash ^= (uint8_t)name->start[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
 static int resolveLocal(Compiler* compiler, Token* name) {
-    for (int i = compiler->localCount - 1; i >= 0; i--) {
+    uint32_t hash = hashToken(name);
+    for (int i = compiler->buckets[hash % LOCAL_BUCKETS]; i != -1;
+         i = compiler->locals[i].next) {
         Local* local = &compiler->locals[i];
-        if (identifiersEqual(name, &local->name)) {
+        if (local->hash == hash && identifiersEqual(name, &local->name)) {
             if (local->depth == -1) {
                 error("Can't read local variable in its own initalizer.");
             }
@@ -208,9 +231,14 @@ static void addLocal(Token name) {
         return;
     }
     
-    Local* local = &current->locals[current->localCount++];
+    int slot = current->localCount++;
+    Local* local = &current->locals[slot];
     local->name = name;
     local->depth = -1;
+    local->hash = hashToken(&name);
+    uint32_t bucket = local->hash % LOCAL_BUCKETS;
+    local->next = current->buckets[bucket];
+    current->buckets[bucket] = slot;
 }
 
 static void declareVariable() {
@@ -218,13 +246,15 @@ static void declareVariable() {
     if (current->scopeDepth == 0) return;
 
     Token* name = &parser.previous;
-    for (int i = current->localCount - 1; i >= 0; i--) {
+    uint32_t hash = hashToken(name);
+    for (int i = current->buckets[hash % LOCAL_BUCKETS]; i != -1;
+         i = current->locals[i].next) {
         Local* local = &current->locals[i];
         if (local->depth != -1 && local->depth < current->scopeDepth) {
             break;
         }
 
-        if (identifiersEqual(name, &local->name)) {
+        if (local->hash == hash && identifiersEqual(name, &local->name)) {
             error("Already variable with this name in this scope.");
         }
     }
