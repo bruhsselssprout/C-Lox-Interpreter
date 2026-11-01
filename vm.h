@@ -5,7 +5,9 @@
 #include "table.h"
 #include "value.h"
 
-#define STACK_MAX 256
+// Challenge 22.4
+// Room for every local plus expression temporaries.
+#define STACK_MAX (UINT16_COUNT + 256)
 
 typedef struct {
     Chunk* chunk;

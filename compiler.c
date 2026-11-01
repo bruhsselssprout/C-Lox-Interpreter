@@ -51,8 +51,9 @@ typedef struct {
 } Local;
 
 typedef struct {
-    Local locals[UINT8_COUNT];
+    Local* locals;
     int localCount;
+    int localCapacity;
     int scopeDepth;
     // Newest local slot in each hash bucket, or -1.
     int buckets[LOCAL_BUCKETS];
@@ -153,6 +154,8 @@ static void emitConstant(Value value) {
 
 static void initCompiler(Compiler* compiler) {
     compiler->localCount = 0;
+    compiler->localCapacity = 0;
+    compiler->locals = NULL;
     compiler->scopeDepth = 0;
     for (int i = 0; i < LOCAL_BUCKETS; i++) compiler->buckets[i] = -1;
     current = compiler;
@@ -227,9 +230,17 @@ static int resolveLocal(Compiler* compiler, Token* name) {
 }
 
 static void addLocal(Token name) {
-    if (current->localCount == UINT8_COUNT) {
+    if (current->localCount == UINT16_COUNT) {
         error("Too many local variables in function.");
         return;
+    }
+
+    if (current->localCount == current->localCapacity) {
+        int capacity = current->localCapacity < 8 ? 8 : current->localCapacity * 2;
+        Local* grown = realloc(current->locals, sizeof(Local) * capacity);
+        if (grown == NULL) exit(1);
+        current->locals = grown;
+        current->localCapacity = capacity;
     }
     
     int slot = current->localCount++;
@@ -381,27 +392,39 @@ static void string(bool canAssign) {
     emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
+// Challenge 22.4
+static void emitVariableOp(uint8_t op, uint8_t longOp, int arg) {
+    if (arg > UINT8_MAX) {
+        emitByte(longOp);
+        emitBytes((arg >> 8) & 0xff, arg & 0xff);
+    } else {
+        emitBytes(op, (uint8_t)arg);
+    }
+}
+
 static void namedVariable(Token name, bool canAssign) {
-    uint8_t getOp, setOp;
+    uint8_t getOp, setOp, getLongOp, setLongOp;
     bool isConst;
     int arg = resolveLocal(current, &name);
     if (arg != -1) {
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
+        getLongOp = OP_GET_LOCAL_LONG;
+        setLongOp = OP_SET_LOCAL_LONG;
         isConst = current->locals[arg].isConst;
     } else {
         arg = identifierConstant(&name);
-        getOp = OP_GET_GLOBAL;
-        setOp = OP_SET_GLOBAL;
+        getOp = getLongOp = OP_GET_GLOBAL;
+        setOp = setLongOp = OP_SET_GLOBAL;
         isConst = isGlobalConst(&name);
     }
     
     if (canAssign && match(TOKEN_EQUAL)) {
         if (isConst) error("Can't assign to a const variable.");
         expression();
-        emitBytes(setOp, (uint8_t)arg);
+        emitVariableOp(setOp, setLongOp, arg);
     } else {
-        emitBytes(getOp, (uint8_t)arg);
+        emitVariableOp(getOp, getLongOp, arg);
     }
 }
 
@@ -605,5 +628,6 @@ bool compile(const char* source, Chunk* chunk) {
     }
 
     endCompiler();
+    free(compiler.locals);
     return !parser.hadError;
 }
