@@ -38,7 +38,8 @@ int main(void) {
     run("cc -std=c11 -O2 -w -DCLOX_BENCH " SRC " vm.c -o /tmp/clox_base");
     run("cc -std=c11 -O2 -w -DCLOX_BENCH " SRC " optimal_vm.c -o /tmp/clox_opt");
 
-    printf("%-10s %10s %10s %9s\n", "benchmark", "vm.c", "optimal", "speedup");
+    printf("\n%-10s %10s %10s %9s %9s\n", "benchmark", "vm.c", "optimal", "speedup", "faster");
+    printf("------------------------------------------------------\n");
     for (int i = 0; i < 2; i++) {
         FILE* f = fopen("/tmp/bench.lox", "w");
         fputs(sources[i], f);
@@ -46,7 +47,9 @@ int main(void) {
 
         double base = timeBinary("/tmp/clox_base");
         double opt = timeBinary("/tmp/clox_opt");
-        printf("%-10s %9.3fs %9.3fs %8.2fx\n", names[i], base, opt, base / opt);
+        printf("%-10s %9.3fs %9.3fs %8.2fx %8.1f%%\n\n", names[i], base, opt, base / opt,
+               (base - opt) / base * 100);
     }
     return 0;
 }
+
