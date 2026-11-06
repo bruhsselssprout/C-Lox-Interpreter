@@ -13,8 +13,13 @@
 
 VM vm;
 
-static Value clockNative(int argCount, Value*args) {
-    return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+// Challenge 24.3
+static bool clockNative(int argCount, Value* args, Value* result, const char** error) {
+    (void)argCount;
+    (void)args;
+    (void)error;
+    *result = NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+    return true;
 }
 
 static void resetStack() {
@@ -125,7 +130,12 @@ static bool callValue(Value callee, int argCount) {
                         native->arity, argCount);
                     return false;
                 }
-                Value result = native->function(argCount, vm.stackTop - argCount);
+                Value result;
+                const char* error = NULL;
+                if (!native->function(argCount, vm.stackTop - argCount, &result, &error)) {
+                    runtimeError("%s", error != NULL ? error : "Native function failed.");
+                    return false;
+                }
                 vm.stackTop -= argCount + 1;
                 push(result);
                 return true;

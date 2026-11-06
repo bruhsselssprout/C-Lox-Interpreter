@@ -34,7 +34,9 @@ typedef struct {
     ObjString* name;
 } ObjFunction;
 
-typedef Value (*NativeFn)(int argCount, Value* args);
+// Challenge 24.3
+typedef bool (*NativeFn)(int argCount, Value* args, Value* result,
+                         const char** error);
 
 typedef struct {
     Obj obj;

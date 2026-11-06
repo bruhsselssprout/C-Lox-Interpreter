@@ -1,4 +1,5 @@
 // Challenge 24.2
+// Challenge 24.2
 #include <assert.h>
 
 #include "object.h"
@@ -6,16 +7,34 @@
 
 static int nativeCalls = 0;
 
-static Value addNative(int argCount, Value* args) {
+static bool addNative(int argCount, Value* args, Value* result, const char** error) {
     assert(argCount == 2);
     nativeCalls++;
-    return NUMBER_VAL(AS_NUMBER(args[0]) + AS_NUMBER(args[1]));
+    if (!IS_NUMBER(args[0]) || !IS_NUMBER(args[1])) {
+        *error = "addNative expects numbers (100% required).";
+        return false;
+    }
+    *result = NUMBER_VAL(AS_NUMBER(args[0]) + AS_NUMBER(args[1]));
+    return true;
+}
+
+static bool failNative(int argCount, Value* args, Value* result, const char** error) {
+    (void)argCount;
+    (void)args;
+    (void)result;
+    (void)error;
+    return false;
 }
 
 int main(void) {
     initVM();
     push(OBJ_VAL(copyString("addNative", 9)));
     push(OBJ_VAL(newNative(addNative, 2)));
+    tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+    pop();
+    pop();
+    push(OBJ_VAL(copyString("failNative", 10)));
+    push(OBJ_VAL(newNative(failNative, 0)));
     tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
     pop();
     pop();
@@ -33,8 +52,11 @@ int main(void) {
 
     assert(interpret("clock();") == INTERPRET_OK);
     assert(interpret("clock(1);") == INTERPRET_RUNTIME_ERROR);
-    assert(interpret("addNative(4, 5);") == INTERPRET_OK);
+    assert(interpret("fun wrapper() { addNative(1, \"wrong\"); } wrapper();") == INTERPRET_RUNTIME_ERROR);
     assert(nativeCalls == 2);
+    assert(interpret("failNative();") == INTERPRET_RUNTIME_ERROR);
+    assert(interpret("addNative(4, 5);") == INTERPRET_OK);
+    assert(nativeCalls == 3);
 
     freeVM();
     return 0;
