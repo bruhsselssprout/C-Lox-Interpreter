@@ -5,7 +5,7 @@
 #include <time.h>
 
 #define RUNS 5
-#define SRC "main.c chunk.c debug.c memory.c value.c scanner.c compiler.c object.c table.c"
+#define SRC "main.c chunk.c debug.c memory.c value.c scanner.c compiler.c object.c table.c native.c"
 
 static const char* names[] = {"loop", "fib(32)"};
 static const char* sources[] = {
@@ -36,8 +36,8 @@ static double timeBinary(const char* binary) {
 }
 
 int main(void) {
-    run("cc -std=c11 -O2 -w -DCLOX_BENCH " SRC " vm.c -o /tmp/clox_base");
-    run("cc -std=c11 -O2 -w -DCLOX_BENCH " SRC " optimal_vm.c -o /tmp/clox_opt");
+    run("cc -std=c11 -O2 -w -DCLOX_BENCH " SRC " vm.c -o /tmp/clox_base -lm");
+    run("cc -std=c11 -O2 -w -DCLOX_BENCH " SRC " optimal_vm.c -o /tmp/clox_opt -lm");
 
     printf("\n%-10s %10s %10s %9s %9s\n", "benchmark", "vm.c", "optimal", "speedup", "faster");
     printf("------------------------------------------------------\n");

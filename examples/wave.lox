@@ -1,0 +1,8 @@
+var halfPi = 1.5707963267948966;
+var amplitude = 10;
+
+for (var step = 0; step < 3; step = step + 1) {
+  var height = amplitude * sin(step * halfPi);
+  if (height > -0.000001 and height < 0.000001) height = 0;
+  print height;
+}

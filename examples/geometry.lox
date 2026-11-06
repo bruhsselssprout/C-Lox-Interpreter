@@ -1,0 +1,10 @@
+fun distance(x1, y1, x2, y2) {
+  var dx = x2 - x1;
+  var dy = y2 - y1;
+  return sqrt(dx * dx + dy * dy);
+}
+
+var label = "Warehouse to station";
+print label;
+print length(label);
+print distance(1, 2, 4, 6);

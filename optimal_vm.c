@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "object.h"
 #include "memory.h"
+#include "native.h"
 #include "vm.h"
 
 VM vm;
@@ -75,6 +76,9 @@ void initVM() {
     initTable(&vm.strings);
 
     defineNative("clock", clockNative, 0); // Challenge 24.2
+    defineNative("sqrt", sqrtNative, 1); // Challenge 24.3
+    defineNative("sin", sinNative, 1); // Challenge 24.3
+    defineNative("length", lengthNative, 1); // Challenge 24.3
 }
 
 void freeVM() {

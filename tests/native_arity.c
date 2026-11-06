@@ -58,6 +58,25 @@ int main(void) {
     assert(interpret("addNative(4, 5);") == INTERPRET_OK);
     assert(nativeCalls == 3);
 
+    assert(interpret("var root = sqrt(81); var sine = sin(0); var size = length(\"hello\");") == INTERPRET_OK);
+    assert(tableGet(&vm.globals, copyString("root", 4), &result));
+    assert(IS_NUMBER(result) && AS_NUMBER(result) == 9);
+    assert(tableGet(&vm.globals, copyString("sine", 4), &result));
+    assert(IS_NUMBER(result) && AS_NUMBER(result) == 0);
+    assert(tableGet(&vm.globals, copyString("size", 4), &result));
+    assert(IS_NUMBER(result) && AS_NUMBER(result) == 5);
+    assert(interpret("sqrt(-1);") == INTERPRET_RUNTIME_ERROR);
+    assert(interpret("sqrt(\"bad\");") == INTERPRET_RUNTIME_ERROR);
+    assert(interpret("sin(\"bad\");") == INTERPRET_RUNTIME_ERROR);
+    assert(interpret("length(42);") == INTERPRET_RUNTIME_ERROR);
+    assert(interpret("length();") == INTERPRET_RUNTIME_ERROR);
+    assert(interpret("var emptySize = length(\"\"); var byteSize = length(\"\xc3\xa9\");") == INTERPRET_OK);
+    assert(tableGet(&vm.globals, copyString("emptySize", 9), &result));
+    assert(IS_NUMBER(result) && AS_NUMBER(result) == 0);
+    assert(tableGet(&vm.globals, copyString("byteSize", 8), &result));
+    assert(IS_NUMBER(result) && AS_NUMBER(result) == 2);
+    assert(interpret("sin(1 / 0);") == INTERPRET_RUNTIME_ERROR);
+
     freeVM();
     return 0;
 }
