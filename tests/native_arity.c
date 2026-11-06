@@ -1,5 +1,6 @@
 // Challenge 24.2
-// Challenge 24.2
+// Challenge 24.3
+// Challenge 24.4
 #include <assert.h>
 
 #include "object.h"
